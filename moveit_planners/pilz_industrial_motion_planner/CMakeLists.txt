@@ -175,6 +175,7 @@ install(
     planning_context_loader_circ
     command_list_manager
     sequence_capability
+  EXPORT ${PROJECT_NAME}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

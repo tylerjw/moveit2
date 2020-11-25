@@ -9,12 +9,12 @@ repositories:
     version: ros2
   geometric_shapes:
     type: git
-    url: https://github.com/ros-planning/geometric_shapes
-    version: ros2
+    url: https://github.com/tylerjw/geometric_shapes
+    version: fix_cmake_install
   srdfdom:
     type: git
-    url: https://github.com/ros-planning/srdfdom
-    version: ros2
+    url: https://github.com/tylerjw/srdfdom
+    version: fix_cmake_install
 
 # TODO(#283): Switch to master after fixing breaking changes in ros2_control
   ros2_control:

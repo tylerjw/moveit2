@@ -80,6 +80,8 @@ target_link_libraries(moveit_trajopt_planner_plugin ${PROJECT_NAME} ${catkin_LIB
 install(
   TARGETS
     moveit_trajopt_planner_plugin
+  EXPORT
+    moveit_trajopt_planner_plugin
   ARCHIVE DESTINATION
     ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION
