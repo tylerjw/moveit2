@@ -90,15 +90,11 @@ ENV ROS_VERSION=2 \
 # install ros2 dependencies
 WORKDIR $ROS2_WS
 COPY --from=cacher /tmp/$ROS2_WS ./
-COPY ./tools/skip_keys.txt /tmp/
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     apt-get update && rosdep install -q -y \
       --from-paths src \
-      --ignore-src \
-      --skip-keys " \
-        $(cat /tmp/skip_keys.txt | xargs) \
-        "
+      --ignore-src
 
 # multi-stage for building ros2
 FROM ros2_depender AS ros2_builder
@@ -139,10 +135,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && rosdep install -q -y \
       --from-paths src \
         $ROS2_WS/src \
-      --ignore-src \
-      --skip-keys " \
-        $(cat /tmp/skip_keys.txt | xargs) \
-      "
+      --ignore-src
 
 # multi-stage for building underlay
 FROM underlay_depender AS underlay_builder
@@ -189,10 +182,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
       --from-paths src \
         $ROS2_WS/src \
         $UNDERLAY_WS/src \
-      --ignore-src \
-      --skip-keys " \
-        $(cat /tmp/skip_keys.txt | xargs) \
-      "
+      --ignore-src
 
 # multi-stage for building overlay
 FROM overlay_depender AS overlay_builder
