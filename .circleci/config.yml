@@ -34,8 +34,7 @@ _commands:
             key: "<< parameters.key >>-v1\
               -{{ arch }}\
               -{{ .Branch }}\
-              -{{ checksum  \"<< parameters.workspace >>/checksum.txt\" }}\
-              -{{ epoch }}"
+              -{{ checksum  \"<< parameters.workspace >>/checksum.txt\" }}"
             paths:
               - << parameters.path >>
             when: << parameters.when >>
