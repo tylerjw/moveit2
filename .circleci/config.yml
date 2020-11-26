@@ -15,7 +15,6 @@ _commands:
             key: "<< parameters.key >>-v1\
               -{{ arch }}\
               -{{ .Branch }}\
-              -{{ .Environment.CIRCLE_PR_NUMBER }}\
               -{{ checksum  \"<< parameters.workspace >>/checksum.txt\" }}"
     save_to_cache:
       description: "Save To Cache"
@@ -35,7 +34,6 @@ _commands:
             key: "<< parameters.key >>-v1\
               -{{ arch }}\
               -{{ .Branch }}\
-              -{{ .Environment.CIRCLE_PR_NUMBER }}\
               -{{ checksum  \"<< parameters.workspace >>/checksum.txt\" }}\
               -{{ epoch }}"
             paths:
