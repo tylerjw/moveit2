@@ -36,7 +36,7 @@ ament_target_dependencies(${MOVEIT_LIB_NAME}
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(locked_robot_state_test test/locked_robot_state_test.cpp APPEND_ENV TIMEOUT=240)
+  ament_add_gtest(locked_robot_state_test test/locked_robot_state_test.cpp TIMEOUT=240)
   target_link_libraries(locked_robot_state_test ${MOVEIT_LIB_NAME})
   ament_target_dependencies(locked_robot_state_test
     Boost)

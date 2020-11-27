@@ -55,7 +55,7 @@ if(BUILD_TESTING)
   )
 
   # As an executable, this benchmark is not run as a test by default
-  ament_add_gtest(test_robot_state_benchmark test/robot_state_benchmark.cpp APPEND_ENV TIMEOUT=240)
+  ament_add_gtest(test_robot_state_benchmark test/robot_state_benchmark.cpp TIMEOUT=240)
   target_link_libraries(test_robot_state_benchmark
     moveit_test_utils
     moveit_utils
