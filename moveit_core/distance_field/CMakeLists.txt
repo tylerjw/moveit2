@@ -32,6 +32,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_voxel_grid test/test_voxel_grid.cpp)
   target_link_libraries(test_voxel_grid ${MOVEIT_LIB_NAME})
 
-  ament_add_gtest(test_distance_field test/test_distance_field.cpp TIMEOUT=240)
+  # TODO(tylerjw): modify this test so it doesn't take so long to run
+  ament_add_gtest(test_distance_field test/test_distance_field.cpp TIMEOUT 240)
   target_link_libraries(test_distance_field ${MOVEIT_LIB_NAME})
 endif()

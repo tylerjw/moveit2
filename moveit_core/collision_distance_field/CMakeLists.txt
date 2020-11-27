@@ -42,7 +42,8 @@ if(BUILD_TESTING)
     set(append_library_dirs "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_CURRENT_BINARY_DIR}/../planning_scene;${CMAKE_CURRENT_BINARY_DIR}/../distance_field;${CMAKE_CURRENT_BINARY_DIR}/../collision_detection;${CMAKE_CURRENT_BINARY_DIR}/../robot_state;${CMAKE_CURRENT_BINARY_DIR}/../robot_model;${CMAKE_CURRENT_BINARY_DIR}/../utils")
   endif()
 
-  ament_add_gtest(test_collision_distance_field test/test_collision_distance_field.cpp TIMEOUT=240)
+  # TODO(tylerjw): modify this test so it doesn't take so long to run
+  ament_add_gtest(test_collision_distance_field test/test_collision_distance_field.cpp TIMEOUT 360)
   target_link_libraries(test_collision_distance_field
     ${MOVEIT_LIB_NAME}
     moveit_collision_detection
