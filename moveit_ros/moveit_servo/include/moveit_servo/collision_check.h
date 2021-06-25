@@ -47,7 +47,7 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64.hpp>
 
-#include <moveit_servo/servo_parameters.h>
+#include <moveit_servo/parameters.hpp>
 #include <moveit_servo/low_pass_filter.h>
 
 namespace moveit_servo
@@ -66,7 +66,7 @@ public:
    *  \param planning_scene_monitor: PSM should have scene monitor and state monitor
    *                                 already started when passed into this class
    */
-  CollisionCheck(rclcpp::Node::SharedPtr node, const ServoParameters::SharedConstPtr& parameters,
+  CollisionCheck(rclcpp::Node::SharedPtr node, const ServoParameters& parameters,
                  const planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
 
   ~CollisionCheck()
@@ -91,10 +91,10 @@ private:
   void worstCaseStopTimeCB(const std_msgs::msg::Float64::SharedPtr msg);
 
   // Pointer to the ROS node
-  const std::shared_ptr<rclcpp::Node> node_;
+  std::shared_ptr<rclcpp::Node> node_;
 
   // Parameters from yaml
-  const ServoParameters::SharedConstPtr parameters_;
+  ServoParameters parameters_;
 
   // Pointer to the collision environment
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
@@ -121,8 +121,8 @@ private:
   double safety_factor_ = 1000;
   double worst_case_stop_time_ = std::numeric_limits<double>::max();
 
-  const double self_velocity_scale_coefficient_;
-  const double scene_velocity_scale_coefficient_;
+  double self_velocity_scale_coefficient_;
+  double scene_velocity_scale_coefficient_;
 
   // collision request
   collision_detection::CollisionRequest collision_request_;

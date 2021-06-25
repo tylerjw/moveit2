@@ -61,7 +61,7 @@
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 // moveit_servo
-#include <moveit_servo/servo_parameters.h>
+#include <moveit_servo/parameters.hpp>
 #include <moveit_servo/status_codes.h>
 #include <moveit_servo/low_pass_filter.h>
 
@@ -70,7 +70,7 @@ namespace moveit_servo
 class ServoCalcs
 {
 public:
-  ServoCalcs(rclcpp::Node::SharedPtr node, const std::shared_ptr<const moveit_servo::ServoParameters>& parameters,
+  ServoCalcs(rclcpp::Node::SharedPtr node, const ServoParameters& servo_parameters,
              const planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
 
   ~ServoCalcs();
@@ -153,9 +153,6 @@ protected:
    */
   void suddenHalt(trajectory_msgs::msg::JointTrajectory& joint_trajectory) const;
   void suddenHalt(sensor_msgs::msg::JointState& joint_state) const;
-
-  /** \brief  Scale the delta theta to match joint velocity/acceleration limits */
-  void enforceVelLimits(Eigen::ArrayXd& delta_theta);
 
   /** \brief Avoid overshooting joint limits */
   bool enforcePositionLimits(sensor_msgs::msg::JointState& joint_state) const;
@@ -253,7 +250,7 @@ protected:
   std::shared_ptr<rclcpp::Node> node_;
 
   // Parameters from yaml
-  const std::shared_ptr<const moveit_servo::ServoParameters> parameters_;
+  ServoParameters parameters_;
 
   // Pointer to the collision environment
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
@@ -349,7 +346,5 @@ protected:
   // dynamic parameters
   std::string robot_link_command_frame_;
   rcl_interfaces::msg::SetParametersResult robotLinkCommandFrameCallback(const rclcpp::Parameter& parameter);
-
-  friend class ServoFixture;
 };
 }  // namespace moveit_servo

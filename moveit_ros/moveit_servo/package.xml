@@ -21,6 +21,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <build_depend>moveit_common</build_depend>
+  <build_depend>parameter_set</build_depend>
 
   <depend>control_msgs</depend>
   <depend>control_toolbox</depend>
@@ -43,6 +44,7 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>controller_manager</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

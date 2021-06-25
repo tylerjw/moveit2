@@ -42,27 +42,19 @@
 #include <boost/optional/optional.hpp>
 #include <control_toolbox/pid.hpp>
 #include <moveit_servo/make_shared_from_pool.h>
+#include <moveit_servo/parameters.hpp>
 #include <moveit_servo/servo.h>
-#include <moveit_servo/servo_parameters.h>
+#include <rclcpp/rclcpp.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
-#include <rclcpp/rclcpp.hpp>
+
+#include <pose_tracking/parameters.hpp>
 
 // Conventions:
 // Calculations are done in the planning_frame_ unless otherwise noted.
 
-namespace moveit_servo
+namespace pose_tracking
 {
-struct PIDConfig
-{
-  // Default values
-  double dt = 0.001;
-  double k_p = 1;
-  double k_i = 0;
-  double k_d = 0;
-  double windup_limit = 0.1;
-};
-
 enum class PoseTrackingStatusCode : int8_t
 {
   INVALID = -1,
@@ -87,7 +79,8 @@ class PoseTracking
 {
 public:
   /** \brief Constructor. Loads ROS parameters under the given namespace. */
-  PoseTracking(const rclcpp::Node::SharedPtr& node, const ServoParameters::SharedConstPtr& servo_parameters,
+  PoseTracking(const rclcpp::Node::SharedPtr& node, const moveit_servo::ServoParameters& servo_parameters,
+               const PoseTrackingParameters& pose_tracking_parameters,
                const planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
 
   PoseTrackingStatusCode moveToPose(const Eigen::Vector3d& positional_tolerance, const double angular_tolerance,
@@ -121,9 +114,6 @@ public:
   std::unique_ptr<moveit_servo::Servo> servo_;
 
 private:
-  /** \brief Load ROS parameters for controller settings. */
-  void readROSParams();
-
   /** \brief Initialize a PID controller and add it to vector of controllers */
   void initializePID(const PIDConfig& pid_config, std::vector<control_toolbox::Pid>& pid_vector);
 
@@ -152,7 +142,9 @@ private:
   void doPostMotionReset();
 
   rclcpp::Node::SharedPtr node_;
-  moveit_servo::ServoParameters::SharedConstPtr servo_parameters_;
+
+  moveit_servo::ServoParameters servo_parameters_;
+  PoseTrackingParameters pose_tracking_parameters_;
 
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
   moveit::core::RobotModelConstPtr robot_model_;
@@ -167,8 +159,6 @@ private:
 
   std::vector<control_toolbox::Pid> cartesian_position_pids_;
   std::vector<control_toolbox::Pid> cartesian_orientation_pids_;
-  // Cartesian PID configs
-  PIDConfig x_pid_config_, y_pid_config_, z_pid_config_, angular_pid_config_;
 
   // Transforms w.r.t. planning_frame_
   Eigen::Isometry3d command_frame_transform_;
@@ -193,4 +183,5 @@ private:
 
 // using alias
 using PoseTrackingPtr = std::shared_ptr<PoseTracking>;
-}  // namespace moveit_servo
+
+}  // namespace pose_tracking

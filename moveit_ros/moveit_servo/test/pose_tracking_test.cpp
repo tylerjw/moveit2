@@ -47,9 +47,9 @@
 #include <gtest/gtest.h>
 
 // Servo
-#include <moveit_servo/pose_tracking.h>
+#include <pose_tracking/pose_tracking.hpp>
 #include <moveit_servo/make_shared_from_pool.h>
-#include <moveit_servo/servo_parameters.h>
+#include <moveit_servo/parameters.hpp>
 
 static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_servo.pose_tracking_test");
 

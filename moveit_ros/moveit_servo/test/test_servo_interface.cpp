@@ -36,7 +36,7 @@
    Desc:   Test for the C++ interface to moveit_servo
 */
 
-#include "servo_launch_test_common.hpp"
+#include "util/servo_fixture.hpp"
 
 namespace moveit_servo
 {

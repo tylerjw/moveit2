@@ -1,7 +1,6 @@
 #################################
 # PID parameters for pose seeking
 #################################
-
 # Maximum value of error integral for all PID controllers
 windup_limit: 0.05
 
