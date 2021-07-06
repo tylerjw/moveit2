@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/*      Title     : servo_server.h
+/*      Title     : servo_component.h
  *      Project   : moveit_servo
  *      Created   : 07/13/2020
  *      Author    : Adam Pettinger
@@ -42,13 +42,14 @@
 
 #include <moveit_servo/servo.h>
 #include <std_srvs/srv/trigger.hpp>
+#include <parameter_set/parameter_set.hpp>
 
 namespace moveit_servo
 {
-class ServoServer : public rclcpp::Node
+class ServoComponentNode : public rclcpp::Node
 {
 public:
-  ServoServer(const rclcpp::NodeOptions& options);
+  ServoComponentNode(const rclcpp::NodeOptions& options);
 
 private:
   bool init();
@@ -60,6 +61,7 @@ private:
   std::unique_ptr<moveit_servo::Servo> servo_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<planning_scene_monitor::PlanningSceneMonitor> planning_scene_monitor_;
+  parameter_set::ParameterSetFactory parameter_set_factory_;
 
   /** \brief Start the servo */
   void startCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,

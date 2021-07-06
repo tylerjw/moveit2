@@ -43,7 +43,7 @@ def generate_servo_test_description(
 
     # Get parameters using the demo config file
     servo_yaml = load_yaml("moveit_servo", "config/panda_simulated_config.yaml")
-    servo_params = {"moveit_servo": servo_yaml}
+    servo_params = {"servo_component": servo_yaml}
 
     # Get URDF and SRDF
     if start_position_path:
@@ -126,16 +126,16 @@ def generate_servo_test_description(
         output="screen",
     )
 
-    servo_server_container = ComposableNodeContainer(
-        name="servo_server_container",
+    servo_component_container = ComposableNodeContainer(
+        name="servo_component_container",
         namespace="/",
         package="rclcpp_components",
         executable="component_container",
         composable_node_descriptions=[
             ComposableNode(
                 package="moveit_servo",
-                plugin="moveit_servo::ServoServer",
-                name="servo_server",
+                plugin="moveit_servo::ServoComponentNode",
+                name="servo_component",
                 parameters=[
                     servo_params,
                     robot_description,
@@ -165,14 +165,14 @@ def generate_servo_test_description(
                 "containing test executables",
             ),
             ros2_control_node,
-            servo_server_container,
+            servo_component_container,
             test_container,
             TimerAction(period=2.0, actions=[servo_gtest]),
             launch_testing.actions.ReadyToTest(),
         ]
         + load_controllers
     ), {
-        "servo_container": servo_server_container,
+        "servo_container": servo_component_container,
         "test_container": test_container,
         "servo_gtest": servo_gtest,
         "ros2_control_node": ros2_control_node,

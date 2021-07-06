@@ -36,43 +36,39 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************/
 
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <moveit_servo/make_shared_from_pool.h>
-#include <moveit_servo/parameters.hpp>
-#include <moveit_servo/servo.h>
-#include <moveit_servo/status_codes.h>
-#include <parameter_set/parameter_set.hpp>
-#include <pose_tracking/parameters.hpp>
-#include <pose_tracking/pose_tracking.hpp>
 #include <std_msgs/msg/int8.hpp>
+#include <geometry_msgs/TransformStamped.h>
+
+#include <moveit_servo/servo.h>
+#include <pose_tracking/pose_tracking.hpp>
+#include <moveit_servo/status_codes.h>
+#include <moveit_servo/make_shared_from_pool.h>
 #include <thread>
 
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_servo.pose_tracking_demo");
+static const std::string LOGNAME = "cpp_interface_example";
 
 // Class for monitoring status of moveit_servo
 class StatusMonitor
 {
 public:
-  StatusMonitor(const rclcpp::Node::SharedPtr& node, const std::string& topic)
+  StatusMonitor(ros::NodeHandle& nh, const std::string& topic)
   {
-    sub_ = node->create_subscription<std_msgs::msg::Int8>(
-        topic, 1, std::bind(&StatusMonitor::statusCB, this, std::placeholders::_1));
+    sub_ = nh.subscribe(topic, 1, &StatusMonitor::statusCB, this);
   }
 
 private:
-  void statusCB(const std_msgs::msg::Int8::ConstSharedPtr msg)
+  void statusCB(const std_msgs::Int8ConstPtr& msg)
   {
     moveit_servo::StatusCode latest_status = static_cast<moveit_servo::StatusCode>(msg->data);
     if (latest_status != status_)
     {
       status_ = latest_status;
       const auto& status_str = moveit_servo::SERVO_STATUS_CODE_MAP.at(status_);
-      RCLCPP_INFO_STREAM(LOGGER, "Servo status: " << status_str);
+      ROS_INFO_STREAM_NAMED(LOGNAME, "Servo status: " << status_str);
     }
   }
-
   moveit_servo::StatusCode status_ = moveit_servo::StatusCode::INVALID;
-  rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr sub_;
+  ros::Subscriber sub_;
 };
 
 /**
@@ -82,73 +78,46 @@ private:
  */
 int main(int argc, char** argv)
 {
-  rclcpp::init(argc, argv);
-  rclcpp::Node::SharedPtr node = rclcpp::Node::make_shared("pose_tracking_demo");
-
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node);
-  std::thread executor_thread([&executor]() { executor.spin(); });
-
-  parameter_set::ParameterSetFactory parameter_set_factory(node->get_node_parameters_interface());
-  auto servo_parameters = parameter_set_factory.declare_and_get<moveit_servo::ServoParameters>("servo");
-  if (servo_parameters.is_valid)
-  {
-    RCLCPP_FATAL(LOGGER, "Failed to load the servo parameters");
-    exit(EXIT_FAILURE);
-  }
-
-  auto pose_tracking_parameters =
-      parameter_set_factory.declare_and_get<pose_tracking::PoseTrackingParameters>("pose_tracking");
-  if (servo_parameters.is_valid)
-  {
-    RCLCPP_FATAL(LOGGER, "Failed to load the servo parameters");
-    exit(EXIT_FAILURE);
-  }
+  ros::init(argc, argv, LOGNAME);
+  ros::NodeHandle nh("~");
+  ros::AsyncSpinner spinner(8);
+  spinner.start();
 
   // Load the planning scene monitor
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor;
-  planning_scene_monitor =
-      std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(node, servo_parameters.robot_description_name);
+  planning_scene_monitor = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>("robot_description");
   if (!planning_scene_monitor->getPlanningScene())
   {
-    RCLCPP_ERROR_STREAM(LOGGER, "Error in setting up the PlanningSceneMonitor.");
+    ROS_ERROR_STREAM_NAMED(LOGNAME, "Error in setting up the PlanningSceneMonitor.");
     exit(EXIT_FAILURE);
   }
 
-  planning_scene_monitor->providePlanningSceneService();
   planning_scene_monitor->startSceneMonitor();
   planning_scene_monitor->startWorldGeometryMonitor(
       planning_scene_monitor::PlanningSceneMonitor::DEFAULT_COLLISION_OBJECT_TOPIC,
       planning_scene_monitor::PlanningSceneMonitor::DEFAULT_PLANNING_SCENE_WORLD_TOPIC,
       false /* skip octomap monitor */);
-  planning_scene_monitor->startStateMonitor(servo_parameters.joint_topic);
-  planning_scene_monitor->startPublishingPlanningScene(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE);
-
-  // Wait for Planning Scene Monitor to setup
-  if (!planning_scene_monitor->waitForCurrentRobotState(node->now(), 5.0 /* seconds */))
-  {
-    RCLCPP_ERROR_STREAM(LOGGER, "Error waiting for current robot state in PlanningSceneMonitor.");
-    exit(EXIT_FAILURE);
-  }
+  planning_scene_monitor->startStateMonitor();
 
   // Create the pose tracker
-  pose_tracking::PoseTracking tracker(node, servo_parameters, pose_tracking_parameters, planning_scene_monitor);
+  moveit_servo::PoseTracking tracker(nh, planning_scene_monitor);
 
   // Make a publisher for sending pose commands
-  auto target_pose_pub = node->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose", 1 /* queue */);
+  ros::Publisher target_pose_pub =
+      nh.advertise<geometry_msgs::PoseStamped>("target_pose", 1 /* queue */, true /* latch */);
 
   // Subscribe to servo status (and log it when it changes)
-  StatusMonitor status_monitor(node, servo_parameters.status_topic);
+  StatusMonitor status_monitor(nh, "status");
 
-  Eigen::Vector3d lin_tol{ 0.001, 0.001, 0.001 };
-  double rot_tol = 0.01;
+  Eigen::Vector3d lin_tol{ 0.01, 0.01, 0.01 };
+  double rot_tol = 0.1;
 
   // Get the current EE transform
-  geometry_msgs::msg::TransformStamped current_ee_tf;
+  geometry_msgs::TransformStamped current_ee_tf;
   tracker.getCommandFrameTransform(current_ee_tf);
 
   // Convert it to a Pose
-  geometry_msgs::msg::PoseStamped target_pose;
+  geometry_msgs::PoseStamped target_pose;
   target_pose.header.frame_id = current_ee_tf.header.frame_id;
   target_pose.pose.position.x = current_ee_tf.transform.translation.x;
   target_pose.pose.position.y = current_ee_tf.transform.translation.y;
@@ -163,36 +132,28 @@ int main(int argc, char** argv)
   tracker.resetTargetPose();
 
   // Publish target pose
-  target_pose.header.stamp = node->now();
-  target_pose_pub->publish(target_pose);
+  target_pose.header.stamp = ros::Time::now();
+  target_pose_pub.publish(target_pose);
 
   // Run the pose tracking in a new thread
-  std::thread move_to_pose_thread([&tracker, &lin_tol, &rot_tol] {
-    pose_tracking::PoseTrackingStatusCode tracking_status =
-        tracker.moveToPose(lin_tol, rot_tol, 0.1 /* target pose timeout */);
-    RCLCPP_INFO_STREAM(LOGGER, "Pose tracker exited with status: "
-                                   << pose_tracking::POSE_TRACKING_STATUS_CODE_MAP.at(tracking_status));
-  });
+  std::thread move_to_pose_thread(
+      [&tracker, &lin_tol, &rot_tol] { tracker.moveToPose(lin_tol, rot_tol, 0.1 /* target pose timeout */); });
 
-  rclcpp::Rate loop_rate(50);
+  ros::Rate loop_rate(50);
   for (size_t i = 0; i < 500; ++i)
   {
     // Modify the pose target a little bit each cycle
     // This is a dynamic pose target
     target_pose.pose.position.z += 0.0004;
-    target_pose.header.stamp = node->now();
-    target_pose_pub->publish(target_pose);
+    target_pose.header.stamp = ros::Time::now();
+    target_pose_pub.publish(target_pose);
 
     loop_rate.sleep();
   }
 
   // Make sure the tracker is stopped and clean up
+  tracker.stopMotion();
   move_to_pose_thread.join();
 
-  // Kill executor thread before shutdown
-  executor.cancel();
-  executor_thread.join();
-
-  rclcpp::shutdown();
   return EXIT_SUCCESS;
 }

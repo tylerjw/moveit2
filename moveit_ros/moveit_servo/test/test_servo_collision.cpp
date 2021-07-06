@@ -38,7 +38,7 @@
  *      Author    : Adam Pettinger
  */
 
-#include "servo_launch_test_common.hpp"
+#include "util/servo_fixture.hpp"
 #include <moveit_msgs/msg/planning_scene.hpp>
 
 namespace moveit_servo

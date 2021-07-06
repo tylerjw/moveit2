@@ -32,41 +32,47 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include "moveit_servo/pose_tracking.h"
-#include "moveit_servo/servo_parameters.h"
-
 #include <chrono>
+
+#include <pose_tracking/pose_tracking.hpp>
+#include <pose_tracking/parameters.hpp>
+
 using namespace std::literals;
 
+namespace pose_tracking
+{
 namespace
 {
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_servo.pose_tracking");
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("pose_tracking");
 constexpr size_t LOG_THROTTLE_PERIOD = 10;  // sec
 }  // namespace
 
-namespace moveit_servo
-{
-PoseTracking::PoseTracking(const rclcpp::Node::SharedPtr& node, const ServoParameters::SharedConstPtr& servo_parameters,
+PoseTracking::PoseTracking(const rclcpp::Node::SharedPtr& node, const moveit_servo::ServoParameters& servo_parameters,
+                           const PoseTrackingParameters& pose_tracking_parameters,
                            const planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor)
   : node_(node)
   , servo_parameters_(servo_parameters)
+  , pose_tracking_parameters_(pose_tracking_parameters)
   , planning_scene_monitor_(planning_scene_monitor)
-  , loop_rate_(1.0 / servo_parameters->publish_period)
+  , loop_rate_(1.0 / servo_parameters.publish_period)
   , transform_buffer_(node_->get_clock())
   , transform_listener_(transform_buffer_)
   , stop_requested_(false)
   , angular_error_(boost::none)
 {
-  readROSParams();
-
   robot_model_ = planning_scene_monitor_->getRobotModel();
-  joint_model_group_ = robot_model_->getJointModelGroup(move_group_name_);
+
+  if (!planning_scene_monitor_->getRobotModel()->hasJointModelGroup(servo_parameters_.move_group_name))
+  {
+    RCLCPP_ERROR_STREAM(LOGGER, "Unable to find the specified joint model group: " << servo_parameters_.move_group_name);
+  }
+  joint_model_group_ = robot_model_->getJointModelGroup(servo_parameters_.move_group_name);
 
   // Initialize PID controllers
-  initializePID(x_pid_config_, cartesian_position_pids_);
-  initializePID(y_pid_config_, cartesian_position_pids_);
-  initializePID(z_pid_config_, cartesian_position_pids_);
-  initializePID(angular_pid_config_, cartesian_orientation_pids_);
+  initializePID(pose_tracking_parameters_.x_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.y_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.z_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.angular_pid, cartesian_orientation_pids_);
 
   // Use the C++ interface that Servo provides
   servo_ = std::make_unique<moveit_servo::Servo>(node_, servo_parameters_, planning_scene_monitor_);
@@ -78,7 +84,7 @@ PoseTracking::PoseTracking(const rclcpp::Node::SharedPtr& node, const ServoParam
 
   // Publish outgoing twist commands to the Servo object
   twist_stamped_pub_ =
-      node_->create_publisher<geometry_msgs::msg::TwistStamped>(servo_->getParameters()->cartesian_command_in_topic, 1);
+      node_->create_publisher<geometry_msgs::msg::TwistStamped>(servo_->getParameters().cartesian_command_in_topic, 1);
 }
 
 PoseTrackingStatusCode PoseTracking::moveToPose(const Eigen::Vector3d& positional_tolerance,
@@ -153,54 +159,12 @@ PoseTrackingStatusCode PoseTracking::moveToPose(const Eigen::Vector3d& positiona
   return PoseTrackingStatusCode::SUCCESS;
 }
 
-void PoseTracking::readROSParams()
-{
-  const std::string ns = "moveit_servo";
-
-  declareOrGetParam(planning_frame_, ns + ".planning_frame", node_, LOGGER);
-  declareOrGetParam(move_group_name_, ns + ".move_group_name", node_, LOGGER);
-
-  if (!planning_scene_monitor_->getRobotModel()->hasJointModelGroup(move_group_name_))
-  {
-    RCLCPP_ERROR_STREAM(LOGGER, "Unable to find the specified joint model group: " << move_group_name_);
-  }
-
-  double publish_period;
-  declareOrGetParam(publish_period, ns + ".publish_period", node_, LOGGER);
-
-  x_pid_config_.dt = publish_period;
-  y_pid_config_.dt = publish_period;
-  z_pid_config_.dt = publish_period;
-  angular_pid_config_.dt = publish_period;
-
-  double windup_limit;
-  declareOrGetParam(windup_limit, ns + ".windup_limit", node_, LOGGER);
-  x_pid_config_.windup_limit = windup_limit;
-  y_pid_config_.windup_limit = windup_limit;
-  z_pid_config_.windup_limit = windup_limit;
-  angular_pid_config_.windup_limit = windup_limit;
-
-  declareOrGetParam(x_pid_config_.k_p, ns + ".x_proportional_gain", node_, LOGGER);
-  declareOrGetParam(x_pid_config_.k_p, ns + ".x_proportional_gain", node_, LOGGER);
-  declareOrGetParam(y_pid_config_.k_p, ns + ".y_proportional_gain", node_, LOGGER);
-  declareOrGetParam(z_pid_config_.k_p, ns + ".z_proportional_gain", node_, LOGGER);
-  declareOrGetParam(x_pid_config_.k_i, ns + ".x_integral_gain", node_, LOGGER);
-  declareOrGetParam(y_pid_config_.k_i, ns + ".y_integral_gain", node_, LOGGER);
-  declareOrGetParam(z_pid_config_.k_i, ns + ".z_integral_gain", node_, LOGGER);
-  declareOrGetParam(x_pid_config_.k_d, ns + ".x_derivative_gain", node_, LOGGER);
-  declareOrGetParam(y_pid_config_.k_d, ns + ".y_derivative_gain", node_, LOGGER);
-  declareOrGetParam(z_pid_config_.k_d, ns + ".z_derivative_gain", node_, LOGGER);
-
-  declareOrGetParam(angular_pid_config_.k_p, ns + ".angular_proportional_gain", node_, LOGGER);
-  declareOrGetParam(angular_pid_config_.k_i, ns + ".angular_integral_gain", node_, LOGGER);
-  declareOrGetParam(angular_pid_config_.k_d, ns + ".angular_derivative_gain", node_, LOGGER);
-}
-
 void PoseTracking::initializePID(const PIDConfig& pid_config, std::vector<control_toolbox::Pid>& pid_vector)
 {
   bool use_anti_windup = true;
-  pid_vector.push_back(control_toolbox::Pid(pid_config.k_p, pid_config.k_i, pid_config.k_d, pid_config.windup_limit,
-                                            -pid_config.windup_limit, use_anti_windup));
+  pid_vector.push_back(control_toolbox::Pid(pid_config.k_p, pid_config.k_i, pid_config.k_d,
+                                            pose_tracking_parameters_.windup_limit,
+                                            -pose_tracking_parameters_.windup_limit, use_anti_windup));
 }
 
 bool PoseTracking::haveRecentTargetPose(const double timespan)
@@ -234,12 +198,12 @@ void PoseTracking::targetPoseCallback(const geometry_msgs::msg::PoseStamped::Con
   std::lock_guard<std::mutex> lock(target_pose_mtx_);
   target_pose_ = *msg;
   // If the target pose is not defined in planning frame, transform the target pose.
-  if (target_pose_.header.frame_id != planning_frame_)
+  if (target_pose_.header.frame_id != servo_parameters_.planning_frame)
   {
     try
     {
       geometry_msgs::msg::TransformStamped target_to_planning_frame = transform_buffer_.lookupTransform(
-          planning_frame_, target_pose_.header.frame_id, rclcpp::Time(0), rclcpp::Duration(100ms));
+          servo_parameters_.planning_frame, target_pose_.header.frame_id, rclcpp::Time(0), rclcpp::Duration(100ms));
       tf2::doTransform(target_pose_, target_pose_, target_to_planning_frame);
 
       // Prevent doTransform from copying a stamp of 0, which will cause the haveRecentTargetPose check to fail servo motions
@@ -338,26 +302,26 @@ void PoseTracking::updatePIDConfig(const double x_proportional_gain, const doubl
 {
   stopMotion();
 
-  x_pid_config_.k_p = x_proportional_gain;
-  x_pid_config_.k_i = x_integral_gain;
-  x_pid_config_.k_d = x_derivative_gain;
-  y_pid_config_.k_p = y_proportional_gain;
-  y_pid_config_.k_i = y_integral_gain;
-  y_pid_config_.k_d = y_derivative_gain;
-  z_pid_config_.k_p = z_proportional_gain;
-  z_pid_config_.k_i = z_integral_gain;
-  z_pid_config_.k_d = z_derivative_gain;
+  pose_tracking_parameters_.x_pid.k_p = x_proportional_gain;
+  pose_tracking_parameters_.x_pid.k_i = x_integral_gain;
+  pose_tracking_parameters_.x_pid.k_d = x_derivative_gain;
+  pose_tracking_parameters_.y_pid.k_p = y_proportional_gain;
+  pose_tracking_parameters_.y_pid.k_i = y_integral_gain;
+  pose_tracking_parameters_.y_pid.k_d = y_derivative_gain;
+  pose_tracking_parameters_.z_pid.k_p = z_proportional_gain;
+  pose_tracking_parameters_.z_pid.k_i = z_integral_gain;
+  pose_tracking_parameters_.z_pid.k_d = z_derivative_gain;
 
-  angular_pid_config_.k_p = angular_proportional_gain;
-  angular_pid_config_.k_i = angular_integral_gain;
-  angular_pid_config_.k_d = angular_derivative_gain;
+  pose_tracking_parameters_.angular_pid.k_p = angular_proportional_gain;
+  pose_tracking_parameters_.angular_pid.k_i = angular_integral_gain;
+  pose_tracking_parameters_.angular_pid.k_d = angular_derivative_gain;
 
   cartesian_position_pids_.clear();
   cartesian_orientation_pids_.clear();
-  initializePID(x_pid_config_, cartesian_position_pids_);
-  initializePID(y_pid_config_, cartesian_position_pids_);
-  initializePID(z_pid_config_, cartesian_position_pids_);
-  initializePID(angular_pid_config_, cartesian_orientation_pids_);
+  initializePID(pose_tracking_parameters_.x_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.y_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.z_pid, cartesian_position_pids_);
+  initializePID(pose_tracking_parameters_.angular_pid, cartesian_orientation_pids_);
 
   doPostMotionReset();
 }
@@ -382,4 +346,4 @@ bool PoseTracking::getCommandFrameTransform(geometry_msgs::msg::TransformStamped
 {
   return servo_->getCommandFrameTransform(transform);
 }
-}  // namespace moveit_servo
+}  // namespace pose_tracking

@@ -43,7 +43,7 @@
 
 // Moveit2
 #include <moveit_servo/collision_check.h>
-#include <moveit_servo/servo_parameters.h>
+#include <moveit_servo/parameters.hpp>
 #include <moveit_servo/servo_calcs.h>
 
 namespace moveit_servo
@@ -54,19 +54,32 @@ namespace moveit_servo
 class Servo
 {
 public:
-  Servo(const rclcpp::Node::SharedPtr& node, ServoParameters::SharedConstPtr parameters,
+  /**
+   * @brief      Servo, for servoing a robot arm.
+   *
+   * @param[in]  node                    The ros node
+   * @param[in]  parameters              The parameters
+   * @param[in]  planning_scene_monitor  The planning scene monitor
+   */
+  Servo(const rclcpp::Node::SharedPtr& node, const ServoParameters& parameters,
         planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor);
 
   ~Servo();
 
-  /** \brief start servo node */
+  /**
+   * @brief      Start servo
+   */
   void start();
 
-  /** \brief Pause or unpause processing servo commands while keeping the timers alive */
+  /**
+   * @brief      Pause or unpause processing servo commands while keeping the timers alive
+   *
+   * @param[in]  paused  Indicates if paused
+   */
   void setPaused(bool paused);
 
   /**
-   * Get the MoveIt planning link transform.
+   * @breif Get the MoveIt planning link transform.
    * The transform from the MoveIt planning frame to robot_link_command_frame
    *
    * @param transform the transform that will be calculated
@@ -76,7 +89,7 @@ public:
   bool getCommandFrameTransform(geometry_msgs::msg::TransformStamped& transform);
 
   /**
-   * Get the End Effector link transform.
+   * @breif Get the End Effector link transform.
    * The transform from the MoveIt planning frame to EE link
    *
    * @param transform the transform that will be calculated
@@ -85,8 +98,8 @@ public:
   bool getEEFrameTransform(Eigen::Isometry3d& transform);
   bool getEEFrameTransform(geometry_msgs::msg::TransformStamped& transform);
 
-  /** \brief Get the parameters used by servo node. */
-  const ServoParameters::SharedConstPtr& getParameters() const;
+  /** @breif Get the parameters used by servo node. */
+  const ServoParameters& getParameters() const;
 
   // Give test access to private/protected methods
   friend class ServoFixture;
@@ -96,7 +109,7 @@ private:
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
 
   // The stored servo parameters
-  ServoParameters::SharedConstPtr parameters_;
+  ServoParameters parameters_;
 
   std::unique_ptr<ServoCalcs> servo_calcs_;
   std::unique_ptr<CollisionCheck> collision_checker_;

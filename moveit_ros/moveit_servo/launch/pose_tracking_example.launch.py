@@ -48,7 +48,7 @@ def generate_launch_description():
 
     # Get parameters for the Pose Tracking node
     pose_tracking_yaml = load_yaml("moveit_servo", "config/pose_tracking_settings.yaml")
-    pose_tracking_params = {"moveit_servo": pose_tracking_yaml}
+    pose_tracking_params = {"pose_tracking": pose_tracking_yaml}
 
     # Get parameters for the Servo node
     servo_yaml = load_yaml(

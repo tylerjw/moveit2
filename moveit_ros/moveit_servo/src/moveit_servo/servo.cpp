@@ -47,18 +47,18 @@ namespace
 {
 constexpr double ROBOT_STATE_WAIT_TIME = 10.0;  // seconds
 }  // namespace
-Servo::Servo(const rclcpp::Node::SharedPtr& node, ServoParameters::SharedConstPtr parameters,
+Servo::Servo(const rclcpp::Node::SharedPtr& node, const ServoParameters& parameters,
              planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor)
   : planning_scene_monitor_(planning_scene_monitor), parameters_(parameters)
 {
   // Confirm the planning scene monitor is ready to be used
   if (!planning_scene_monitor_->getStateMonitor())
   {
-    planning_scene_monitor_->startStateMonitor(parameters_->joint_topic);
+    planning_scene_monitor_->startStateMonitor(parameters_.joint_topic);
   }
   planning_scene_monitor->getStateMonitor()->enableCopyDynamics(true);
 
-  if (!planning_scene_monitor_->getStateMonitor()->waitForCompleteState(parameters_->move_group_name,
+  if (!planning_scene_monitor_->getStateMonitor()->waitForCompleteState(parameters_.move_group_name,
                                                                         ROBOT_STATE_WAIT_TIME))
   {
     RCLCPP_FATAL(LOGGER, "Timeout waiting for current state");
@@ -78,7 +78,7 @@ void Servo::start()
   servo_calcs_->start();
 
   // Check collisions in this timer
-  if (parameters_->check_collisions)
+  if (parameters_.check_collisions)
     collision_checker_->start();
 }
 
@@ -113,7 +113,7 @@ bool Servo::getEEFrameTransform(geometry_msgs::msg::TransformStamped& transform)
   return servo_calcs_->getEEFrameTransform(transform);
 }
 
-const ServoParameters::SharedConstPtr& Servo::getParameters() const
+const ServoParameters& Servo::getParameters() const
 {
   return parameters_;
 }

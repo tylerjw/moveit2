@@ -31,20 +31,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************/
 
-/*      Title     : servo_server.cpp
+/*      Title     : servo_component.cpp
  *      Project   : moveit_servo
  *      Created   : 12/31/2018
  *      Author    : Andy Zelenak
  */
 
-#include <moveit_servo/servo_server.h>
-#include <moveit_servo/servo_parameters.h>
+#include <moveit_servo/servo_component.h>
+#include <moveit_servo/parameters.hpp>
 
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_servo.servo_server");
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_servo.servo_component");
 
 namespace moveit_servo
 {
-ServoServer::ServoServer(const rclcpp::NodeOptions& options) : Node("servo_service", options), is_initialized_(false)
+ServoComponentNode::ServoComponentNode(const rclcpp::NodeOptions& options)
+  : Node("servo_component", options)
+  , parameter_set_factory_(this->get_node_parameters_interface())
+  , is_initialized_(false)
 {
   if (!options.use_intra_process_comms())
   {
@@ -56,43 +59,40 @@ ServoServer::ServoServer(const rclcpp::NodeOptions& options) : Node("servo_servi
   // Set up services for interacting with Servo
   using std::placeholders::_1;
   using std::placeholders::_2;
-  start_servo_service_ =
-      this->create_service<std_srvs::srv::Trigger>("~/start_servo", std::bind(&ServoServer::startCB, this, _1, _2));
-  stop_servo_service_ =
-      this->create_service<std_srvs::srv::Trigger>("~/stop_servo", std::bind(&ServoServer::stopCB, this, _1, _2));
-  pause_servo_service_ =
-      this->create_service<std_srvs::srv::Trigger>("~/pause_servo", std::bind(&ServoServer::pauseCB, this, _1, _2));
-  unpause_servo_service_ =
-      this->create_service<std_srvs::srv::Trigger>("~/unpause_servo", std::bind(&ServoServer::unpauseCB, this, _1, _2));
+  start_servo_service_ = this->create_service<std_srvs::srv::Trigger>(
+      "~/start_servo", std::bind(&ServoComponentNode::startCB, this, _1, _2));
+  stop_servo_service_ = this->create_service<std_srvs::srv::Trigger>(
+      "~/stop_servo", std::bind(&ServoComponentNode::stopCB, this, _1, _2));
+  pause_servo_service_ = this->create_service<std_srvs::srv::Trigger>(
+      "~/pause_servo", std::bind(&ServoComponentNode::pauseCB, this, _1, _2));
+  unpause_servo_service_ = this->create_service<std_srvs::srv::Trigger>(
+      "~/unpause_servo", std::bind(&ServoComponentNode::unpauseCB, this, _1, _2));
 }
 
-bool ServoServer::init()
+bool ServoComponentNode::init()
 {
   bool performed_initialization = true;
+  auto node_name = this->get_name();
 
-  // Can set robot_description name from parameters
-  std::string robot_description_name = "robot_description";
-  this->get_parameter_or("robot_description_name", robot_description_name, robot_description_name);
-
-  // Set up planning_scene_monitor
-  auto node_ptr = shared_from_this();
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-  planning_scene_monitor_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
-      node_ptr, robot_description_name, tf_buffer_, "planning_scene_monitor");
-
-  // Get the servo parameters
-  auto servo_parameters = moveit_servo::ServoParameters::makeServoParameters(node_ptr, LOGGER);
-  if (servo_parameters == nullptr)
+  // Read the servo parameters
+  auto servo_parameters = parameter_set_factory_.declare_and_get<ServoParameters>(node_name);
+  if (servo_parameters.is_valid)
   {
     RCLCPP_FATAL(LOGGER, "Failed to load the servo parameters");
     performed_initialization = false;
   }
 
+  // Set up planning_scene_monitor
+  auto node_ptr = shared_from_this();
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  planning_scene_monitor_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
+      node_ptr, servo_parameters.robot_description_name, tf_buffer_, "planning_scene_monitor");
+
   // Start the planning scene monitor
   performed_initialization &= (planning_scene_monitor_->getPlanningScene() != nullptr);
   if (performed_initialization)
   {
-    planning_scene_monitor_->startStateMonitor(servo_parameters->joint_topic);
+    planning_scene_monitor_->startStateMonitor(servo_parameters.joint_topic);
     planning_scene_monitor_->setPlanningScenePublishingFrequency(25);
     planning_scene_monitor_->startPublishingPlanningScene(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE,
                                                           "/moveit_servo/publish_planning_scene");
@@ -119,7 +119,7 @@ bool ServoServer::init()
   }
 }
 
-void ServoServer::reset()
+void ServoComponentNode::reset()
 {
   servo_.reset();
   tf_buffer_.reset();
@@ -127,8 +127,8 @@ void ServoServer::reset()
   is_initialized_ = false;
 }
 
-void ServoServer::startCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                          std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+void ServoComponentNode::startCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
   // If we already initialized, reset servo before initializing again
   if (is_initialized_)
@@ -137,15 +137,15 @@ void ServoServer::startCB(const std::shared_ptr<std_srvs::srv::Trigger::Request>
   response->success = init();
 }
 
-void ServoServer::stopCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+void ServoComponentNode::stopCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
   reset();
   response->success = true;
 }
 
-void ServoServer::pauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                          std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+void ServoComponentNode::pauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
   if (servo_)
     servo_->setPaused(true);
@@ -153,8 +153,8 @@ void ServoServer::pauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Request>
   response->success = true;
 }
 
-void ServoServer::unpauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                            std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+void ServoComponentNode::unpauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                   std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
   if (servo_)
     servo_->setPaused(false);
@@ -166,4 +166,4 @@ void ServoServer::unpauseCB(const std::shared_ptr<std_srvs::srv::Trigger::Reques
 
 // Register the component with class_loader
 #include <rclcpp_components/register_node_macro.hpp>
-RCLCPP_COMPONENTS_REGISTER_NODE(moveit_servo::ServoServer)
+RCLCPP_COMPONENTS_REGISTER_NODE(moveit_servo::ServoComponentNode)
